@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Adventures — Voice Support</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --border: #2e2e42;
+    --accent: #7c6af7;
+    --accent-light: #a89af8;
+    --text: #e8e8f0;
+    --muted: #8888aa;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 24px 16px; }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { font-size: 1.6rem; color: var(--accent-light); letter-spacing: .05em; }
+  header p { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; width: 100%; max-width: 680px; margin-bottom: 16px; }
+  #chat { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+  .msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: .9rem; line-height: 1.5; }
+  .msg.agent { background: #24243a; border-bottom-left-radius: 4px; align-self: flex-start; }
+  .msg.user { background: #2a2050; border-bottom-right-radius: 4px; align-self: flex-end; text-align: right; }
+  .msg.system { background: #1e2a1e; color: var(--green); font-size: .8rem; align-self: center; border-radius: 8px; }
+  .msg.handoff { background: #2a1f1a; color: var(--yellow); align-self: center; border-radius: 8px; }
+  .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  #mic-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; transition: all .2s; background: var(--accent); color: white; }
+  #mic-btn.listening { background: var(--red); animation: pulse 1s infinite; }
+  #mic-btn:disabled { background: var(--border); cursor: not-allowed; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+  #text-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 10px; font-size: .9rem; outline: none; }
+  #text-input:focus { border-color: var(--accent); }
+  #send-btn { background: var(--accent); border: none; color: white; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: .9rem; }
+  #send-btn:disabled { background: var(--border); cursor: not-allowed; }
+  .status-row { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .dot.green { background: var(--green); }
+  .dot.red { background: var(--red); }
+  .dot.yellow { background: var(--yellow); animation: pulse 1s infinite; }
+  #latency-panel { font-size: .75rem; color: var(--muted); display: none; }
+  #latency-panel.visible { display: block; }
+  #latency-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  #latency-table th, #latency-table td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--border); }
+  #latency-table th { color: var(--accent-light); }
+  .toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: .75rem; cursor: pointer; }
+  audio { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎓 AI Adventures Support</h1>
+  <p>Ask about Python, Data Science, Machine Learning, Deep Learning & Computer Vision courses in Pune</p>
+</header>
+
+<div class="card">
+  <div id="chat"></div>
+</div>
+
+<div class="card">
+  <div class="controls">
+    <button id="mic-btn" title="Click to start/stop voice input">🎙️</button>
+    <input id="text-input" type="text" placeholder="Or type your question here…" autocomplete="off">
+    <button id="send-btn">Send</button>
+  </div>
+  <div class="status-row" style="margin-top:12px">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label">Disconnected</span>
+    &nbsp;|&nbsp;
+    <div class="dot" id="vad-dot"></div>
+    <span id="vad-label">VAD: idle</span>
+    &nbsp;|&nbsp;
+    <div class="dot" id="speak-dot"></div>
+    <span id="speak-label">TTS: silent</span>
+    &nbsp;
+    <button class="toggle" id="latency-toggle">Show Latency</button>
+  </div>
+  <div id="latency-panel">
+    <table id="latency-table">
+      <thead><tr><th>Node</th><th>ms</th></tr></thead>
+      <tbody id="latency-tbody"></tbody>
+    </table>
+    <div id="ttfa-row" style="margin-top:4px"></div>
+  </div>
+</div>
+
+<audio id="tts-audio"></audio>
+
+<script>
+const SAMPLE_RATE = 16000;
+const FRAME_MS = 30;
+const FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS / 1000; // 480
+
+let ws = null, mediaStream = null, audioCtx = null, processor = null;
+let isListening = false, isSpeaking = false, isSpeechDetected = false;
+let audioQueue = [], isPlayingQueue = false;
+let sessionStart = null;
+
+const chat = document.getElementById("chat");
+const micBtn = document.getElementById("mic-btn");
+const textInput = document.getElementById("text-input");
+const sendBtn = document.getElementById("send-btn");
+const connDot = document.getElementById("conn-dot");
+const connLabel = document.getElementById("conn-label");
+const vadDot = document.getElementById("vad-dot");
+const vadLabel = document.getElementById("vad-label");
+const speakDot = document.getElementById("speak-dot");
+const speakLabel = document.getElementById("speak-label");
+const latencyPanel = document.getElementById("latency-panel");
+const latencyTbody = document.getElementById("latency-tbody");
+const ttfaRow = document.getElementById("ttfa-row");
+const latencyToggle = document.getElementById("latency-toggle");
+const ttsAudio = document.getElementById("tts-audio");
+
+latencyToggle.onclick = () => {
+  latencyPanel.classList.toggle("visible");
+  latencyToggle.textContent = latencyPanel.classList.contains("visible") ? "Hide Latency" : "Show Latency";
+};
+
+function addMsg(text, role) {
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function setConn(state) {
+  const map = { connected: ["green", "Connected"], disconnected: ["", "Disconnected"], error: ["red", "Error"] };
+  const [cls, label] = map[state] || ["", state];
+  connDot.className = `dot ${cls}`;
+  connLabel.textContent = label;
+}
+
+function setVAD(active) {
+  vadDot.className = `dot ${active ? "yellow" : ""}`;
+  vadLabel.textContent = `VAD: ${active ? "speech detected" : "idle"}`;
+}
+
+function setSpeaking(active) {
+  speakDot.className = `dot ${active ? "green" : ""}`;
+  speakLabel.textContent = `TTS: ${active ? "speaking" : "silent"}`;
+  isSpeaking = active;
+}
+
+function updateLatency(latObj, agentMs) {
+  latencyTbody.innerHTML = "";
+  for (const [k, v] of Object.entries(latObj || {})) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${k}</td><td>${v.toFixed(1)}</td>`;
+    latencyTbody.appendChild(tr);
+  }
+  if (agentMs) {
+    ttfaRow.textContent = `Agent round-trip: ${agentMs} ms`;
+  }
+}
+
+// --- WebSocket ---
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws/voice`);
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => {
+    setConn("connected");
+    sendBtn.disabled = false;
+    micBtn.disabled = false;
+    sessionStart = Date.now();
+  };
+
+  ws.onclose = () => {
+    setConn("disconnected");
+    sendBtn.disabled = true;
+    micBtn.disabled = true;
+    stopListening();
+    setTimeout(connect, 3000); // auto-reconnect
+  };
+
+  ws.onerror = () => setConn("error");
+
+  ws.onmessage = async (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "text_reply") {
+      addMsg(msg.text, "agent");
+      if (msg.handoff) addMsg(`⚠️ Transferring to human advisor: ${msg.handoff_reason || ""}`, "handoff");
+      updateLatency(msg.latency_ms, msg.agent_ms);
+    } else if (msg.type === "transcript") {
+      if (!msg.is_backchannel) addMsg(msg.text, "user");
+    } else if (msg.type === "audio") {
+      const binary = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
+      audioQueue.push(binary.buffer);
+      if (!isPlayingQueue) drainQueue();
+    } else if (msg.type === "barge_in_detected") {
+      addMsg("[ Barge-in detected — listening... ]", "system");
+      audioQueue = []; // clear pending audio
+      setSpeaking(false);
+    } else if (msg.type === "handoff") {
+      addMsg("📞 Connecting you to our admissions team now…", "handoff");
+    } else if (msg.type === "pong") {
+      /* ignore */
+    }
+  };
+}
+
+async function drainQueue() {
+  isPlayingQueue = true;
+  setSpeaking(true);
+  while (audioQueue.length > 0) {
+    const buf = audioQueue.shift();
+    await playWavBuffer(buf);
+  }
+  isPlayingQueue = false;
+  setSpeaking(false);
+}
+
+function playWavBuffer(wavBuffer) {
+  return new Promise(resolve => {
+    const blob = new Blob([wavBuffer], { type: "audio/wav" });
+    const url = URL.createObjectURL(blob);
+    const a = new Audio(url);
+    a.onended = () => { URL.revokeObjectURL(url); resolve(); };
+    a.onerror = resolve;
+    a.play().catch(resolve);
+  });
+}
+
+// --- Microphone (browser VAD over raw PCM) ---
+async function startListening() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    const source = audioCtx.createMediaStreamSource(mediaStream);
+    processor = audioCtx.createScriptProcessor(FRAME_SAMPLES, 1, 1);
+    source.connect(processor);
+    processor.connect(audioCtx.destination);
+
+    processor.onaudioprocess = (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const f32 = e.inputBuffer.getChannelData(0);
+      // Convert float32 → int16
+      const pcm = new Int16Array(f32.length);
+      for (let i = 0; i < f32.length; i++) {
+        pcm[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+      }
+      // Simple client-side energy gate to suppress silence (saves bandwidth)
+      const rms = Math.sqrt(pcm.reduce((s, x) => s + x * x, 0) / pcm.length);
+      if (rms > 80 || isSpeechDetected) {
+        setVAD(rms > 80);
+        isSpeechDetected = rms > 80;
+        ws.send(pcm.buffer);
+      }
+    };
+
+    isListening = true;
+    micBtn.classList.add("listening");
+    micBtn.textContent = "⏹️";
+    addMsg("🎙️ Listening… speak now.", "system");
+  } catch (err) {
+    addMsg(`Microphone error: ${err.message}`, "system");
+  }
+}
+
+function stopListening() {
+  if (processor) { processor.disconnect(); processor = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  isListening = false;
+  isSpeechDetected = false;
+  micBtn.classList.remove("listening");
+  micBtn.textContent = "🎙️";
+  setVAD(false);
+}
+
+micBtn.onclick = async () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (isListening) stopListening();
+  else await startListening();
+};
+
+// --- Text mode ---
+function sendText() {
+  const text = textInput.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  addMsg(text, "user");
+  ws.send(JSON.stringify({ type: "text_input", text }));
+  textInput.value = "";
+}
+
+sendBtn.onclick = sendText;
+textInput.onkeydown = (e) => { if (e.key === "Enter") sendText(); };
+
+// --- Ping keepalive ---
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+}, 25000);
+
+// Boot
+connect();
+</script>
+</body>
+</html>

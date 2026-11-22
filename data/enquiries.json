@@ -1,0 +1,60 @@
+{
+  "enquiries": [
+    {
+      "enquiry_id": "ENQ-101",
+      "phone": "9876543210",
+      "first_name": "Rohan",
+      "course_interest": "Data Science",
+      "status": "Contacted",
+      "next_followup": "Tomorrow at 11:00 AM",
+      "notes": "Interested in 6 months curriculum and weekend batches."
+    },
+    {
+      "enquiry_id": "ENQ-102",
+      "phone": "9123456789",
+      "first_name": "Pooja",
+      "course_interest": "Python",
+      "status": "Demo Scheduled",
+      "next_followup": "Saturday at 4:00 PM",
+      "notes": "Beginner looking for foundational Python."
+    },
+    {
+      "enquiry_id": "ENQ-103",
+      "phone": "9988776655",
+      "first_name": "Amit",
+      "course_interest": "Machine Learning",
+      "status": "Enrolled",
+      "next_followup": "None",
+      "notes": "Current batch student."
+    }
+  ],
+  "demo_bookings": [
+    {
+      "booking_id": "BK-E75062",
+      "enquiry_id": "ENQ-101",
+      "slot": "Saturday 11:00 AM",
+      "status": "Confirmed"
+    }
+  ],
+  "tickets": [
+    {
+      "ticket_id": "TCK-037531",
+      "summary": "Caller wants full refund for batch",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-E1B921",
+      "summary": "Refund/Dispute request from caller: I need my money back, process a full refund right now!",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-59E935",
+      "summary": "Refund/Dispute request from caller: I demand a complete refund of my fees immediately!",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    }
+  ],
+  "callback_requests": []
+}
