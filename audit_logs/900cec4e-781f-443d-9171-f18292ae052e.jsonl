@@ -1,0 +1,2 @@
+{"session_id":"900cec4e-781f-443d-9171-f18292ae052e","event_type":"reply","payload":{"reply_len":35,"handoff":false},"transcript_ref":"Hello, hello.","timestamp":"2026-11-23T06:43:35.189768+00:00","chain_hash":"17660a4a0914c19281d695ac9f10d81bce4416ee2cf99b26cb355d8972011274"}
+{"session_id":"900cec4e-781f-443d-9171-f18292ae052e","event_type":"reply","payload":{"reply_len":54,"handoff":false},"transcript_ref":"I want","timestamp":"2026-11-23T06:43:59.416723+00:00","chain_hash":"42b76b5f7b68f0fa21ef7c4d940b5612f01095019b25f0a862311660a44793a4"}

@@ -3,125 +3,296 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Adventures — Voice Support</title>
+<title>AI Adventures — Phone Voice Support</title>
 <style>
   :root {
-    --bg: #0f0f13;
-    --surface: #1a1a24;
-    --border: #2e2e42;
-    --accent: #7c6af7;
-    --accent-light: #a89af8;
-    --text: #e8e8f0;
-    --muted: #8888aa;
-    --green: #4ade80;
-    --red: #f87171;
-    --yellow: #fbbf24;
+    --bg: #0c0d14;
+    --surface: #151724;
+    --surface-hover: #1e2133;
+    --border: #272a3d;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-light: #a5b4fc;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 24px 16px; }
-  header { text-align: center; margin-bottom: 24px; }
-  header h1 { font-size: 1.6rem; color: var(--accent-light); letter-spacing: .05em; }
-  header p { color: var(--muted); font-size: .9rem; margin-top: 4px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; width: 100%; max-width: 680px; margin-bottom: 16px; }
-  #chat { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
-  .msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: .9rem; line-height: 1.5; }
-  .msg.agent { background: #24243a; border-bottom-left-radius: 4px; align-self: flex-start; }
-  .msg.user { background: #2a2050; border-bottom-right-radius: 4px; align-self: flex-end; text-align: right; }
-  .msg.system { background: #1e2a1e; color: var(--green); font-size: .8rem; align-self: center; border-radius: 8px; }
-  .msg.handoff { background: #2a1f1a; color: var(--yellow); align-self: center; border-radius: 8px; }
-  .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  #mic-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; transition: all .2s; background: var(--accent); color: white; }
-  #mic-btn.listening { background: var(--red); animation: pulse 1s infinite; }
-  #mic-btn:disabled { background: var(--border); cursor: not-allowed; }
-  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
-  #text-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 10px; font-size: .9rem; outline: none; }
-  #text-input:focus { border-color: var(--accent); }
-  #send-btn { background: var(--accent); border: none; color: white; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: .9rem; }
-  #send-btn:disabled { background: var(--border); cursor: not-allowed; }
-  .status-row { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
-  .dot.green { background: var(--green); }
-  .dot.red { background: var(--red); }
-  .dot.yellow { background: var(--yellow); animation: pulse 1s infinite; }
-  #latency-panel { font-size: .75rem; color: var(--muted); display: none; }
-  #latency-panel.visible { display: block; }
-  #latency-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-  #latency-table th, #latency-table td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--border); }
-  #latency-table th { color: var(--accent-light); }
-  .toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: .75rem; cursor: pointer; }
-  audio { display: none; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 32px 16px;
+  }
+  header { text-align: center; margin-bottom: 24px; max-width: 640px; }
+  header .badge {
+    display: inline-block;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--accent-light);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+  }
+  header h1 { font-size: 1.85rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+  header p { color: var(--muted); font-size: 0.95rem; margin-top: 6px; line-height: 1.4; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 18px;
+  }
+  .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .form-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .btn-call {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 13px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+  .btn-call:hover { background: var(--accent-hover); }
+  .btn-call:active { transform: scale(0.99); }
+  .btn-call:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  .status-box {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    display: none;
+    line-height: 1.4;
+  }
+  .status-box.info { display: block; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: var(--accent-light); }
+  .status-box.success { display: block; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: var(--green); }
+  .status-box.error { display: block; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--red); }
+
+  .info-list {
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .info-list li { margin-left: 20px; margin-bottom: 6px; }
+
+  /* Tab view */
+  .tab-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 12px;
+  }
+  .tab-btn {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* Chat styles for web tester */
+  #web-chat-card { display: none; }
+  #chat { height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; margin-bottom: 12px; }
+  .msg { padding: 9px 12px; border-radius: 10px; max-width: 85%; font-size: 0.85rem; line-height: 1.4; }
+  .msg.agent { background: #1e2133; align-self: flex-start; }
+  .msg.user { background: #2f2b5a; align-self: flex-end; }
+  .msg.system { background: #132418; color: var(--green); font-size: 0.78rem; align-self: center; }
+  .msg.handoff { background: #2f2010; color: var(--yellow); font-size: 0.78rem; align-self: center; }
+  .chat-controls { display: flex; gap: 8px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>🎓 AI Adventures Support</h1>
-  <p>Ask about Python, Data Science, Machine Learning, Deep Learning & Computer Vision courses in Pune</p>
+  <div class="badge">Telephony AI Agent</div>
+  <h1>AI Adventures Voice Support</h1>
+  <p>Hands-on AI, Machine Learning & Data Science Institute in Pune. Request a phone call or chat with our live AI advisor.</p>
 </header>
 
-<div class="card">
+<div class="tab-row">
+  <button class="tab-btn active" id="tab-phone-btn" onclick="showTab('phone')">📞 Phone Call (Twilio)</button>
+  <button class="tab-btn" id="tab-web-btn" onclick="showTab('web')">💬 Browser Chat Tester</button>
+</div>
+
+<!-- TAB 1: Outbound Phone Call -->
+<div class="card" id="phone-call-card">
+  <div class="card-title">📞 Request an Instant Callback</div>
+  <p style="color:var(--muted); font-size:0.88rem; margin-bottom:16px;">
+    Enter your mobile number below. Our AI admissions assistant will dial your phone immediately to answer course fees, syllabus, demo classes, and batch timings.
+  </p>
+
+  <form id="call-form" onsubmit="handleCallSubmit(event)">
+    <div class="form-group">
+      <label for="caller-name">Your Name (Optional)</label>
+      <input class="form-input" id="caller-name" type="text" placeholder="e.g. Rahul Patil">
+    </div>
+    <div class="form-group">
+      <label for="caller-phone">Mobile Phone Number (E.164 or 10-digit)</label>
+      <input class="form-input" id="caller-phone" type="tel" placeholder="+919876543210 or 9876543210" required>
+    </div>
+    <button class="btn-call" id="btn-dial" type="submit">
+      <span>📞 Call My Phone Now</span>
+    </button>
+  </form>
+
+  <div class="status-box" id="call-status"></div>
+
+  <div class="info-list">
+    <div style="font-weight:600; margin-bottom:6px; color:var(--text);">What can you ask over the call?</div>
+    <ul>
+      <li>Course curriculum (Python, ML, Deep Learning, Generative AI, Computer Vision)</li>
+      <li>Course duration & fees (₹35,000 to ₹75,000 depending on track)</li>
+      <li>Book a free live weekend demo session</li>
+      <li>Check existing enquiry status with your phone number</li>
+    </ul>
+  </div>
+</div>
+
+<!-- TAB 2: In-Browser Text Tester -->
+<div class="card" id="web-chat-card">
+  <div class="card-title">💬 Interactive Web Chat</div>
   <div id="chat"></div>
-</div>
-
-<div class="card">
-  <div class="controls">
-    <button id="mic-btn" title="Click to start/stop voice input">🎙️</button>
-    <input id="text-input" type="text" placeholder="Or type your question here…" autocomplete="off">
-    <button id="send-btn">Send</button>
-  </div>
-  <div class="status-row" style="margin-top:12px">
-    <div class="dot" id="conn-dot"></div>
-    <span id="conn-label">Disconnected</span>
-    &nbsp;|&nbsp;
-    <div class="dot" id="vad-dot"></div>
-    <span id="vad-label">VAD: idle</span>
-    &nbsp;|&nbsp;
-    <div class="dot" id="speak-dot"></div>
-    <span id="speak-label">TTS: silent</span>
-    &nbsp;
-    <button class="toggle" id="latency-toggle">Show Latency</button>
-  </div>
-  <div id="latency-panel">
-    <table id="latency-table">
-      <thead><tr><th>Node</th><th>ms</th></tr></thead>
-      <tbody id="latency-tbody"></tbody>
-    </table>
-    <div id="ttfa-row" style="margin-top:4px"></div>
+  <div class="chat-controls">
+    <input class="form-input" id="text-input" type="text" placeholder="Type a question (e.g. 'What is the fee for ML course?')" autocomplete="off">
+    <button class="btn-call" style="width: auto; padding: 0 20px;" id="send-btn" onclick="sendText()">Send</button>
   </div>
 </div>
-
-<audio id="tts-audio"></audio>
 
 <script>
-const SAMPLE_RATE = 16000;
-const FRAME_MS = 30;
-const FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS / 1000; // 480
+function showTab(tab) {
+  const phoneCard = document.getElementById("phone-call-card");
+  const webCard = document.getElementById("web-chat-card");
+  const tabPhoneBtn = document.getElementById("tab-phone-btn");
+  const tabWebBtn = document.getElementById("tab-web-btn");
 
-let ws = null, mediaStream = null, audioCtx = null, processor = null;
-let isListening = false, isSpeaking = false, isSpeechDetected = false;
-let audioQueue = [], isPlayingQueue = false;
-let sessionStart = null;
+  if (tab === "phone") {
+    phoneCard.style.display = "block";
+    webCard.style.display = "none";
+    tabPhoneBtn.classList.add("active");
+    tabWebBtn.classList.remove("active");
+  } else {
+    phoneCard.style.display = "none";
+    webCard.style.display = "block";
+    tabPhoneBtn.classList.remove("active");
+    tabWebBtn.classList.add("active");
+    if (!ws) connectWeb();
+  }
+}
 
+async function handleCallSubmit(e) {
+  e.preventDefault();
+  const phoneInput = document.getElementById("caller-phone");
+  const nameInput = document.getElementById("caller-name");
+  const statusBox = document.getElementById("call-status");
+  const dialBtn = document.getElementById("btn-dial");
+
+  const phone = phoneInput.value.trim();
+  const name = nameInput.value.trim();
+
+  if (!phone) return;
+
+  dialBtn.disabled = true;
+  dialBtn.innerHTML = `<span>⏳ Dialing ${phone}...</span>`;
+  statusBox.className = "status-box info";
+  statusBox.textContent = `Connecting to Twilio and initiating outbound call to ${phone}...`;
+
+  try {
+    const res = await fetch("/api/call", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone_number: phone, name: name })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      statusBox.className = "status-box success";
+      statusBox.innerHTML = `✅ <strong>Call Initiated!</strong> Your phone should ring in a few seconds.<br><small>Call SID: ${data.call_sid || "active"}</small>`;
+    } else {
+      statusBox.className = "status-box error";
+      statusBox.innerHTML = `❌ <strong>Failed to dial:</strong> ${data.error || "Unknown error"}`;
+      if (data.details) {
+        statusBox.innerHTML += `<br><small>${JSON.stringify(data.details)}</small>`;
+      }
+    }
+  } catch (err) {
+    statusBox.className = "status-box error";
+    statusBox.innerHTML = `❌ <strong>Network error:</strong> ${err.message}`;
+  } finally {
+    dialBtn.disabled = false;
+    dialBtn.innerHTML = `<span>📞 Call My Phone Now</span>`;
+  }
+}
+
+// --- Web Chat WebSocket ---
+let ws = null;
 const chat = document.getElementById("chat");
-const micBtn = document.getElementById("mic-btn");
 const textInput = document.getElementById("text-input");
-const sendBtn = document.getElementById("send-btn");
-const connDot = document.getElementById("conn-dot");
-const connLabel = document.getElementById("conn-label");
-const vadDot = document.getElementById("vad-dot");
-const vadLabel = document.getElementById("vad-label");
-const speakDot = document.getElementById("speak-dot");
-const speakLabel = document.getElementById("speak-label");
-const latencyPanel = document.getElementById("latency-panel");
-const latencyTbody = document.getElementById("latency-tbody");
-const ttfaRow = document.getElementById("ttfa-row");
-const latencyToggle = document.getElementById("latency-toggle");
-const ttsAudio = document.getElementById("tts-audio");
-
-latencyToggle.onclick = () => {
-  latencyPanel.classList.toggle("visible");
-  latencyToggle.textContent = latencyPanel.classList.contains("visible") ? "Hide Latency" : "Show Latency";
-};
 
 function addMsg(text, role) {
   const div = document.createElement("div");
@@ -132,177 +303,36 @@ function addMsg(text, role) {
   return div;
 }
 
-function setConn(state) {
-  const map = { connected: ["green", "Connected"], disconnected: ["", "Disconnected"], error: ["red", "Error"] };
-  const [cls, label] = map[state] || ["", state];
-  connDot.className = `dot ${cls}`;
-  connLabel.textContent = label;
-}
-
-function setVAD(active) {
-  vadDot.className = `dot ${active ? "yellow" : ""}`;
-  vadLabel.textContent = `VAD: ${active ? "speech detected" : "idle"}`;
-}
-
-function setSpeaking(active) {
-  speakDot.className = `dot ${active ? "green" : ""}`;
-  speakLabel.textContent = `TTS: ${active ? "speaking" : "silent"}`;
-  isSpeaking = active;
-}
-
-function updateLatency(latObj, agentMs) {
-  latencyTbody.innerHTML = "";
-  for (const [k, v] of Object.entries(latObj || {})) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${k}</td><td>${v.toFixed(1)}</td>`;
-    latencyTbody.appendChild(tr);
-  }
-  if (agentMs) {
-    ttfaRow.textContent = `Agent round-trip: ${agentMs} ms`;
-  }
-}
-
-// --- WebSocket ---
-function connect() {
+function connectWeb() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${proto}://${location.host}/ws/voice`);
-  ws.binaryType = "arraybuffer";
 
   ws.onopen = () => {
-    setConn("connected");
-    sendBtn.disabled = false;
-    micBtn.disabled = false;
-    sessionStart = Date.now();
+    addMsg("Connected to AI Adventures Advisor. Ask any course question below!", "system");
   };
 
-  ws.onclose = () => {
-    setConn("disconnected");
-    sendBtn.disabled = true;
-    micBtn.disabled = true;
-    stopListening();
-    setTimeout(connect, 3000); // auto-reconnect
-  };
-
-  ws.onerror = () => setConn("error");
-
-  ws.onmessage = async (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.type === "text_reply") {
-      addMsg(msg.text, "agent");
-      if (msg.handoff) addMsg(`⚠️ Transferring to human advisor: ${msg.handoff_reason || ""}`, "handoff");
-      updateLatency(msg.latency_ms, msg.agent_ms);
-    } else if (msg.type === "transcript") {
-      if (!msg.is_backchannel) addMsg(msg.text, "user");
-    } else if (msg.type === "audio") {
-      const binary = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
-      audioQueue.push(binary.buffer);
-      if (!isPlayingQueue) drainQueue();
-    } else if (msg.type === "barge_in_detected") {
-      addMsg("[ Barge-in detected — listening... ]", "system");
-      audioQueue = []; // clear pending audio
-      setSpeaking(false);
-    } else if (msg.type === "handoff") {
-      addMsg("📞 Connecting you to our admissions team now…", "handoff");
-    } else if (msg.type === "pong") {
-      /* ignore */
-    }
-  };
-}
-
-async function drainQueue() {
-  isPlayingQueue = true;
-  setSpeaking(true);
-  while (audioQueue.length > 0) {
-    const buf = audioQueue.shift();
-    await playWavBuffer(buf);
-  }
-  isPlayingQueue = false;
-  setSpeaking(false);
-}
-
-function playWavBuffer(wavBuffer) {
-  return new Promise(resolve => {
-    const blob = new Blob([wavBuffer], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    const a = new Audio(url);
-    a.onended = () => { URL.revokeObjectURL(url); resolve(); };
-    a.onerror = resolve;
-    a.play().catch(resolve);
-  });
-}
-
-// --- Microphone (browser VAD over raw PCM) ---
-async function startListening() {
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
-    const source = audioCtx.createMediaStreamSource(mediaStream);
-    processor = audioCtx.createScriptProcessor(FRAME_SAMPLES, 1, 1);
-    source.connect(processor);
-    processor.connect(audioCtx.destination);
-
-    processor.onaudioprocess = (e) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const f32 = e.inputBuffer.getChannelData(0);
-      // Convert float32 → int16
-      const pcm = new Int16Array(f32.length);
-      for (let i = 0; i < f32.length; i++) {
-        pcm[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "text_reply") {
+        addMsg(msg.text, "agent");
+        if (msg.handoff) addMsg(`⚠️ Transferring to advisor: ${msg.handoff_reason || ""}`, "handoff");
       }
-      // Simple client-side energy gate to suppress silence (saves bandwidth)
-      const rms = Math.sqrt(pcm.reduce((s, x) => s + x * x, 0) / pcm.length);
-      if (rms > 80 || isSpeechDetected) {
-        setVAD(rms > 80);
-        isSpeechDetected = rms > 80;
-        ws.send(pcm.buffer);
-      }
-    };
-
-    isListening = true;
-    micBtn.classList.add("listening");
-    micBtn.textContent = "⏹️";
-    addMsg("🎙️ Listening… speak now.", "system");
-  } catch (err) {
-    addMsg(`Microphone error: ${err.message}`, "system");
-  }
+    } catch (e) {}
+  };
 }
 
-function stopListening() {
-  if (processor) { processor.disconnect(); processor = null; }
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-  isListening = false;
-  isSpeechDetected = false;
-  micBtn.classList.remove("listening");
-  micBtn.textContent = "🎙️";
-  setVAD(false);
-}
-
-micBtn.onclick = async () => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (isListening) stopListening();
-  else await startListening();
-};
-
-// --- Text mode ---
 function sendText() {
   const text = textInput.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!text) return;
   addMsg(text, "user");
-  ws.send(JSON.stringify({ type: "text_input", text }));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "text_input", text }));
+  }
   textInput.value = "";
 }
 
-sendBtn.onclick = sendText;
 textInput.onkeydown = (e) => { if (e.key === "Enter") sendText(); };
-
-// --- Ping keepalive ---
-setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
-}, 25000);
-
-// Boot
-connect();
 </script>
 </body>
 </html>
