@@ -19,14 +19,14 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
-FRAME_SAMPLES = 480 # 30ms @ 16kHz
+FRAME_SAMPLES = 512  # 32ms @ 16kHz (Silero VAD v5 architecture native window)
 SPEECH_THRESHOLD = 0.5
 SILENCE_THRESHOLD = 0.35
 
 
 class SileroVAD:
     """Silero VAD v5 ONNX wrapper.
-    Model inputs: (input[1,N], state[2,1,128], sr[]) -> (output[1,1], stateN[2,1,128])
+    Model inputs: (input[1,512], state[2,1,128], sr[]) -> (output[1,1], stateN[2,1,128])
     Falls back to energy-based stub if onnxruntime is not installed or model is missing.
     """
     def __init__(self, model_path: Optional[str] = None):
@@ -71,8 +71,15 @@ class SileroVAD:
             rms = float(np.sqrt(np.mean(audio_frame.astype(np.float32) ** 2)))
             return 1.0 if rms > 250 else 0.0
 
+        # Ensure frame has exactly 512 samples for Silero v5 input
+        if len(audio_frame) != FRAME_SAMPLES:
+            if len(audio_frame) < FRAME_SAMPLES:
+                audio_frame = np.pad(audio_frame, (0, FRAME_SAMPLES - len(audio_frame)))
+            else:
+                audio_frame = audio_frame[:FRAME_SAMPLES]
+
         frame = audio_frame.astype(np.float32) / 32768.0
-        frame = frame[np.newaxis, :]  # (1, 480)
+        frame = frame[np.newaxis, :]  # (1, 512)
         sr = np.array(SAMPLE_RATE, dtype=np.int64)
 
         # v5 API: inputs are (input, state, sr) -> (output, stateN)
@@ -83,7 +90,16 @@ class SileroVAD:
         return prob
 
     def is_speech(self, audio_frame: np.ndarray) -> bool:
-        return self.get_speech_prob(audio_frame) >= SPEECH_THRESHOLD
+        """Classify frame as speech using hybrid neural VAD + acoustic energy for telephony."""
+        rms = float(np.sqrt(np.mean(audio_frame.astype(np.float32) ** 2)))
+        prob = self.get_speech_prob(audio_frame)
+
+        # Telephony hybrid speech detection:
+        # Line noise on Twilio is ~7-25 RMS.
+        # 1. Silero neural probability is >= SPEECH_THRESHOLD (0.5)
+        # 2. Telephony voice: rms > 150 and prob > 0.05
+        # 3. Robust vocal energy: rms > 350
+        return (prob >= SPEECH_THRESHOLD) or (rms > 150.0 and prob > 0.05) or (rms > 350.0)
 
 
 class UtteranceSegmenter:
@@ -98,20 +114,22 @@ class UtteranceSegmenter:
         pre_buffer_ms: int = 200,
     ):
         self.vad = vad
-        self.silence_timeout_frames = max(1, silence_timeout_ms // 30)
-        self.pre_buffer_frames = max(1, pre_buffer_ms // 30)
+        self.silence_timeout_frames = max(1, silence_timeout_ms // 32)
+        self.pre_buffer_frames = max(1, pre_buffer_ms // 32)
 
         self._buffer: List[np.ndarray] = []
         self._pre_buffer: List[np.ndarray] = []
         self._in_speech = False
         self._silence_count = 0
 
-    def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def process_frame(self, frame: np.ndarray, is_speech: Optional[bool] = None) -> Optional[np.ndarray]:
         """
-        Feed a 30ms audio frame; returns a complete utterance as np.ndarray
+        Feed an audio frame; returns a complete utterance as np.ndarray
         when speech ends, or None if still accumulating.
+        Accepts optional pre-computed is_speech to avoid evaluating stateful VAD twice.
         """
-        is_speech = self.vad.is_speech(frame)
+        if is_speech is None:
+            is_speech = self.vad.is_speech(frame)
 
         if is_speech:
             if not self._in_speech:

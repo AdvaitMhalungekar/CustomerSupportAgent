@@ -44,7 +44,7 @@ def _make_silence_frame() -> np.ndarray:
     return np.zeros(FRAME_SAMPLES, dtype=np.int16)
 
 def _make_speech_frame(amplitude=5000) -> np.ndarray:
-    t = np.linspace(0, 0.03, FRAME_SAMPLES)
+    t = np.linspace(0, 0.032, FRAME_SAMPLES)
     return (amplitude * np.sin(2 * np.pi * 300 * t)).astype(np.int16)
 
 def test_vad_model_loads():

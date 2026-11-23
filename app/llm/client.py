@@ -121,6 +121,9 @@ class LLMClient:
                     logger.warning(f"Groq rate limit hit (attempt {attempt+1}/{max_retries}). Retrying in {sleep_time:.2f}s...")
                     time.sleep(sleep_time)
                     delay *= 2
+                elif any(k in err_str for k in ["permission", "auth", "401", "403", "unauthorized", "forbidden"]):
+                    logger.warning(f"Groq auth/permission error ({e}). Falling back to offline policy.")
+                    return self._offline_policy_response(messages)
                 else:
                     logger.error(f"Groq inference failed: {e}")
                     raise e

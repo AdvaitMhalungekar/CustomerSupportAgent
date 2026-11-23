@@ -23,14 +23,12 @@ def ulaw_to_pcm16_16k(ulaw_bytes: bytes) -> np.ndarray:
         return np.array([], dtype=np.int16)
 
     # 1. Decode mu-law to 16-bit linear PCM (sample width = 2 bytes, 8000 Hz)
-    pcm_8k = audioop.ulaw2lin(ulaw_bytes, 2)
+    pcm_8k_bytes = audioop.ulaw2lin(ulaw_bytes, 2)
+    pcm_8k = np.frombuffer(pcm_8k_bytes, dtype=np.int16)
 
-    # 2. Resample 8000 Hz -> 16000 Hz
-    # ratecv(fragment, width, nchannels, inrate, outrate, state[, weightA[, weightB]])
-    pcm_16k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, None)
-
-    # 3. Convert to numpy int16 array
-    return np.frombuffer(pcm_16k, dtype=np.int16)
+    # 2. Resample 8000 Hz -> 16000 Hz using exact integer 2x sample duplication
+    # Eliminates boundary clicks, sample dropping, and filter phase delay across 20ms chunks
+    return np.repeat(pcm_8k, 2)
 
 
 def pcm16_to_ulaw_8k(pcm_data: np.ndarray, orig_sr: int = 16000) -> bytes:

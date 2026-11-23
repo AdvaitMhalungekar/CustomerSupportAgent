@@ -150,7 +150,10 @@ async def initiate_outbound_call(payload: OutboundCallRequest):
                 data=data,
                 auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
             )
-            resp_data = resp.json()
+            try:
+                resp_data = resp.json()
+            except Exception:
+                resp_data = {"message": resp.text}
 
             if resp.status_code >= 400:
                 logger.error(f"Twilio error: {resp_data}")
@@ -167,7 +170,7 @@ async def initiate_outbound_call(payload: OutboundCallRequest):
             }
     except Exception as e:
         logger.error(f"Error making outbound Twilio call: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": f"Twilio error: {str(e)}"})
 
 
 @app.api_route("/twilio/twiml", methods=["GET", "POST"])
@@ -328,14 +331,17 @@ async def voice_websocket(ws: WebSocket):
                     raw_bytes = raw_bytes[frame_size_bytes:]
                     frame = np.frombuffer(frame_bytes, dtype=np.int16).copy()
 
+                    # Run VAD exactly once per frame
+                    is_sp = session.vad.is_speech(frame)
+
                     # --- Barge-in detection while TTS is playing ---
-                    if session.is_speaking and session.vad.is_speech(frame):
+                    if session.is_speaking and is_sp:
                         logger.info(f"[{session_id}] BARGE-IN detected!")
                         await session.stop_speaking()
                         await session.send_json({"type": "barge_in_detected"})
 
-                    # --- VAD segmentation ---
-                    utterance = session.segmenter.process_frame(frame)
+                    # --- VAD segmentation using pre-computed is_speech ---
+                    utterance = session.segmenter.process_frame(frame, is_speech=is_sp)
                     if utterance is not None:
                         # Stamp the moment the utterance was sealed
                         session.t_vad_end = time.perf_counter()
@@ -425,6 +431,7 @@ async def twilio_websocket(ws: WebSocket):
                     raw_bytes = raw_bytes[frame_size_bytes:]
                     frame = np.frombuffer(frame_bytes, dtype=np.int16).copy()
 
+                    # Run VAD exactly once per frame
                     is_sp = session.vad.is_speech(frame)
                     if is_sp:
                         session._speech_frame_count += 1
@@ -439,8 +446,8 @@ async def twilio_websocket(ws: WebSocket):
                         logger.info(f"[{session_id}] Telephony BARGE-IN detected! Interrupting audio.")
                         await session.stop_speaking()
 
-                    # VAD segmentation
-                    utterance = session.segmenter.process_frame(frame)
+                    # VAD segmentation using pre-computed is_speech (prevents double RNN advance)
+                    utterance = session.segmenter.process_frame(frame, is_speech=is_sp)
                     if utterance is not None:
                         logger.info(f"[{session_id}] Telephony utterance detected! Length: {len(utterance)} samples ({len(utterance)/16000:.2f}s). Dispatching to ASR...")
                         session.t_vad_end = time.perf_counter()
