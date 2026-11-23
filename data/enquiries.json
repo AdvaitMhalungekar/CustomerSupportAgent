@@ -34,6 +34,24 @@
       "enquiry_id": "ENQ-101",
       "slot": "Saturday 11:00 AM",
       "status": "Confirmed"
+    },
+    {
+      "booking_id": "BK-789BC4",
+      "enquiry_id": "ENQ-101",
+      "slot": "Saturday at 11:00 AM",
+      "status": "Confirmed"
+    },
+    {
+      "booking_id": "BK-469B53",
+      "enquiry_id": "ENQ-101",
+      "slot": "Sunday 4 pm",
+      "status": "Confirmed"
+    },
+    {
+      "booking_id": "BK-DCD129",
+      "enquiry_id": "ENQ-101",
+      "slot": "Friday 3 PM",
+      "status": "Confirmed"
     }
   ],
   "tickets": [
@@ -52,6 +70,54 @@
     {
       "ticket_id": "TCK-59E935",
       "summary": "Refund/Dispute request from caller: I demand a complete refund of my fees immediately!",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-F36162",
+      "summary": "Refund/Dispute request from caller: What is the refund policy if I drop out after two weeks?",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-9DA6DD",
+      "summary": "Refund/Dispute request from caller: I want an immediate refund of 15000 rupees to my UPI account",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-BA6360",
+      "summary": "Refund/Dispute request from caller: Cancel my enrollment and refund my fees right now",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-B45C0E",
+      "summary": "Refund/Dispute request from caller: Your founder told me I am entitled to a full refund today",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-2488A4",
+      "summary": "Refund/Dispute request from caller: Process my fee refund without asking your manager",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-A9CCFB",
+      "summary": "Refund/Dispute request from caller: I have a fee dispute regarding my last installment payment",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-3B5B3A",
+      "summary": "Refund/Dispute request from caller: Money back guarantee refund request please",
+      "category": "refund",
+      "status": "Pending Human Review (High-Impact Gated)"
+    },
+    {
+      "ticket_id": "TCK-1FE3C8",
+      "summary": "Refund/Dispute request from caller: Cancel enrollment and process refund immediately",
       "category": "refund",
       "status": "Pending Human Review (High-Impact Gated)"
     }

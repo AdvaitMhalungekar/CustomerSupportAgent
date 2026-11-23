@@ -4,7 +4,14 @@ import random
 import logging
 from typing import List, Dict, Any, Optional
 import httpx
-from openai import OpenAI
+
+try:
+    from openai import OpenAI
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    OpenAI = None  # type: ignore
+    _OPENAI_AVAILABLE = False
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -33,17 +40,21 @@ class LLMClient:
         self.base_url = base_url or settings.GROQ_BASE_URL
         self.fast_model = settings.GROQ_FAST_MODEL
         self.escalation_model = settings.GROQ_ESCALATION_MODEL
-        self.client: Optional[OpenAI] = None
+        self.client: Optional[Any] = None
         self.live_models: List[str] = []
         self.is_offline = not bool(self.api_key and self.api_key != "your_groq_api_key_here")
 
         if not self.is_offline:
-            try:
-                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-                self._verify_and_select_models()
-            except Exception as e:
-                logger.warning(f"Could not connect to Groq at startup: {e}. Falling back to offline policy.")
+            if not _OPENAI_AVAILABLE:
+                logger.warning("openai package not installed. Falling back to offline policy.")
                 self.is_offline = True
+            else:
+                try:
+                    self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+                    self._verify_and_select_models()
+                except Exception as e:
+                    logger.warning(f"Could not connect to Groq at startup: {e}. Falling back to offline policy.")
+                    self.is_offline = True
         else:
             logger.info("Operating in deterministic offline policy mode (no GROQ_API_KEY provided).")
 
@@ -63,7 +74,6 @@ class LLMClient:
                 # Check fast model
                 if self.fast_model not in self.live_models:
                     logger.warning(f"Configured fast model '{self.fast_model}' not found in live Groq models.")
-                    # Pick suitable live fallback
                     candidates = [m for m in self.live_models if "8b" in m or "instant" in m or "20b" in m or "gpt" in m]
                     if candidates:
                         self.fast_model = candidates[0]
@@ -100,7 +110,8 @@ class LLMClient:
                     temperature=0.2,
                     max_tokens=250
                 )
-                logger.debug(f"LLM call ({model}) took {(time.perf_counter() - start_t)*1000:.1f}ms")
+                rtt_ms = (time.perf_counter() - start_t) * 1000
+                logger.debug(f"LLM call ({model}) took {rtt_ms:.1f}ms")
                 return response.choices[0].message.content or ""
             except Exception as e:
                 err_str = str(e).lower()
@@ -125,15 +136,33 @@ class LLMClient:
                 user_query = m.get("content", "").lower()
                 break
 
-        # Check for refund / payment dispute requests
-        if "refund" in user_query or "cancel" in user_query or "money back" in user_query:
+        # 1. Financial & high-impact actions -> priority ticket + handoff
+        if any(w in user_query for w in ["refund", "cancel", "money back", "dispute", "waive"]):
             return "I cannot process refunds or fee adjustments directly. I have raised a priority ticket for our accounts team, and an advisor will contact you shortly."
 
-        if "machine learning" in user_query or "ml" in user_query:
-            return "The Machine Learning program is 6 months long with a fee of 15,000 rupees per month. Our counselors can confirm the latest batch schedule."
+        # 2. Unverified facts / placeholders -> MUST trigger handoff
+        unverified_signals = [
+            "curriculum", "syllabus", "batch timing", "timing", "placement", "guarantee",
+            "emi", "loan", "installment", "discount", "scholarship", "email",
+            "working hour", "office hour", "online", "hybrid", "offline only",
+            "accredit", "prerequisite", "admission requirement", "drop out",
+            "certificate", "certification", "contact email"
+        ]
+        if any(w in user_query for w in unverified_signals):
+            return "I don't have that verified in my notes right now, so let me connect you with an admissions counselor who can provide the exact details."
+
+        # 3. Known KB topics
+        if "deep learning" in user_query or "computer vision" in user_query:
+            return "AI Adventures offers hands-on programs covering Deep Learning, Computer Vision, Machine Learning, Data Science, and Python in Pune."
+
+        if any(w in user_query for w in ["teaching", "methodology", "style", "code-first", "how do you teach"]):
+            return "Our teaching methodology is hands-on and code-first, where learners build real projects from scratch."
+
+        if "machine learning" in user_query or " ml " in user_query:
+            return "The Machine Learning program is 6 months long with an estimated fee of 15,000 rupees per month. Our counselors can confirm the latest batch schedule."
 
         if "python" in user_query:
-            return "Our beginner Python course is 15,000 rupees per month. Please note that this is an unverified estimate, and our team will confirm the exact details."
+            return "Our beginner Python course fee is estimated at 15,000 rupees per month. Our counselors can confirm the exact details."
 
         if "data science" in user_query:
             return "The Data Science program has a duration of 6 months, and the fee is approximately 25,000 rupees per month, subject to official confirmation."
@@ -141,15 +170,11 @@ class LLMClient:
         if "courses" in user_query or "what do you offer" in user_query or "topics" in user_query:
             return "AI Adventures offers hands-on programs in Python, Data Science, Machine Learning, Deep Learning, and Computer Vision based in Pune."
 
-        if "location" in user_query or "address" in user_query or "where" in user_query:
+        if any(w in user_query for w in ["location", "address", "where", "pune", "maharashtra"]):
             return "We are located at 2nd Floor, 1284 Atre House, Congress Bhavan Road, JM Road, near Balgandharv Rangmandir, Pune 411005."
 
         if "lookup" in user_query or "enquiry" in user_query or "status" in user_query:
             return "Let me check that enquiry for you right now."
-
-        # Unverified topic -> triggers human handoff default
-        if any(w in user_query for w in ["curriculum", "syllabus", "batch timing", "placement", "guarantee", "emi", "discount", "scholarship"]):
-            return "I don't have that verified in my notes right now, so let me connect you with an admissions counselor who can provide the exact details."
 
         # Default fallback
         return "AI Adventures is a hands-on AI and machine learning training institute in Pune. How can I assist you with our courses today?"

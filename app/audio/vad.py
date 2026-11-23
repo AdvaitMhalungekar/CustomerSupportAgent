@@ -5,14 +5,21 @@ Returns speech probability per frame; segments audio into utterances.
 import numpy as np
 import os
 import logging
-from typing import List, Tuple, Optional
-import onnxruntime as ort
+from typing import List, Optional
+
+try:
+    import onnxruntime as ort
+    _ORT_AVAILABLE = True
+except ImportError:
+    ort = None  # type: ignore
+    _ORT_AVAILABLE = False
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
-FRAME_SAMPLES = 480  # 30ms @ 16kHz
+FRAME_SAMPLES = 480 # 30ms @ 16kHz
 SPEECH_THRESHOLD = 0.5
 SILENCE_THRESHOLD = 0.35
 
@@ -20,16 +27,20 @@ SILENCE_THRESHOLD = 0.35
 class SileroVAD:
     """Silero VAD v5 ONNX wrapper.
     Model inputs: (input[1,N], state[2,1,128], sr[]) -> (output[1,1], stateN[2,1,128])
+    Falls back to energy-based stub if onnxruntime is not installed or model is missing.
     """
     def __init__(self, model_path: Optional[str] = None):
         self.model_path = model_path or os.path.join(settings.MODELS_DIR, "silero_vad.onnx")
-        self._sess: Optional[ort.InferenceSession] = None
+        self._sess = None
         # v5 uses a single consolidated state tensor [2, batch, 128]
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
         self._input_names: List[str] = []
         self._load_model()
 
     def _load_model(self):
+        if not _ORT_AVAILABLE:
+            logger.warning("onnxruntime not installed. SileroVAD using energy-based stub.")
+            return
         if not os.path.exists(self.model_path):
             logger.warning(f"Silero VAD model not found at {self.model_path}. Using stub.")
             return
@@ -54,11 +65,11 @@ class SileroVAD:
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
 
     def get_speech_prob(self, audio_frame: np.ndarray) -> float:
-        """Run VAD on a single 480-sample (30ms) frame. Returns speech prob 0.0-1.0."""
+        """Run VAD on a single frame. Returns speech prob 0.0-1.0."""
         if self._sess is None:
-            # Energy-based stub
+            # Energy-based stub: calibrated for 16-bit linear PCM telephone audio
             rms = float(np.sqrt(np.mean(audio_frame.astype(np.float32) ** 2)))
-            return 1.0 if rms > 500 else 0.0
+            return 1.0 if rms > 250 else 0.0
 
         frame = audio_frame.astype(np.float32) / 32768.0
         frame = frame[np.newaxis, :]  # (1, 480)

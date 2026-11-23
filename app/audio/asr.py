@@ -13,6 +13,13 @@ import os
 from typing import Optional, Tuple
 import numpy as np
 
+try:
+    from groq import Groq
+    _GROQ_AVAILABLE = True
+except ImportError:
+    Groq = None  # type: ignore
+    _GROQ_AVAILABLE = False
+
 from app.config import settings
 from app.audio.asr_normalizer import normalize_asr_transcript
 
@@ -36,15 +43,19 @@ class GroqASR:
         self.base_url = settings.GROQ_BASE_URL
         self.is_offline = not bool(self.api_key and self.api_key != "your_groq_api_key_here")
         self._client = None
+        self._local_model = None
 
         if not self.is_offline:
-            try:
-                from groq import Groq
-                self._client = Groq(api_key=self.api_key)
-                logger.info(f"Groq ASR client initialized (model: {self.model})")
-            except Exception as e:
-                logger.warning(f"Groq ASR init failed: {e}. Using local fallback.")
-                self._init_local_fallback()
+            if not _GROQ_AVAILABLE:
+                logger.warning("groq package not installed. Using offline ASR stub.")
+                self.is_offline = True
+            else:
+                try:
+                    self._client = Groq(api_key=self.api_key)
+                    logger.info(f"Groq ASR client initialized (model: {self.model})")
+                except Exception as e:
+                    logger.warning(f"Groq ASR init failed: {e}. Using local fallback.")
+                    self._init_local_fallback()
         else:
             logger.info("ASR operating in offline/stub mode (no GROQ_API_KEY).")
 
@@ -106,7 +117,7 @@ class GroqASR:
 
     def _local_fallback_transcribe(self, audio_pcm: np.ndarray, sample_rate: int) -> Tuple[str, bool]:
         """Use faster-whisper if available."""
-        if hasattr(self, "_local_model") and self._local_model is not None:
+        if self._local_model is not None:
             try:
                 audio_f32 = audio_pcm.astype(np.float32) / 32768.0
                 segments, _ = self._local_model.transcribe(audio_f32, language="en")

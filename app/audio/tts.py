@@ -98,7 +98,7 @@ class PiperTTS(TTSProvider):
             return np.array([], dtype=np.int16)
 
         if self._binary is None or not os.path.exists(self.model_path):
-            return self._stub_audio(text)
+            return self._sapi_or_stub(text)
 
         try:
             cmd = [
@@ -116,15 +116,54 @@ class PiperTTS(TTSProvider):
             )
             if result.returncode != 0 or not result.stdout:
                 logger.warning(f"Piper returned code {result.returncode} for: '{text}'")
-                return self._stub_audio(text)
+                return self._sapi_or_stub(text)
 
             pcm = np.frombuffer(result.stdout, dtype=np.int16)
             return pcm
         except subprocess.TimeoutExpired:
             logger.warning(f"Piper synthesis timed out for: '{text}'")
-            return self._stub_audio(text)
+            return self._sapi_or_stub(text)
         except Exception as e:
             logger.error(f"Piper synthesis failed: {e}")
+            return self._sapi_or_stub(text)
+
+    def _sapi_or_stub(self, text: str) -> np.ndarray:
+        """Synthesize using Windows SAPI if available, otherwise return silent stub."""
+        try:
+            import tempfile
+            import wave
+            import win32com.client
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            voice = win32com.client.Dispatch("SAPI.SpVoice")
+            stream = win32com.client.Dispatch("SAPI.SpFileStream")
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                tmp_path = tf.name
+
+            stream.Open(tmp_path, 3, False)
+            voice.AudioOutputStream = stream
+            voice.Speak(text)
+            stream.Close()
+
+            with wave.open(tmp_path, "rb") as wf:
+                sr = wf.getframerate()
+                frames = wf.readframes(wf.getnframes())
+                pcm = np.frombuffer(frames, dtype=np.int16)
+                if sr != self.sample_rate:
+                    import audioop
+                    resampled, _ = audioop.ratecv(pcm.tobytes(), 2, 1, sr, self.sample_rate, None)
+                    pcm = np.frombuffer(resampled, dtype=np.int16)
+
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+            return pcm
+        except Exception as err:
+            logger.debug(f"SAPI fallback unavailable ({err}), using silent stub.")
             return self._stub_audio(text)
 
     def _stub_audio(self, text: str) -> np.ndarray:

@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     CHANNELS: int = 1
     AUDIO_CHUNK_MS: int = 30  # 30ms frames for Silero VAD (480 samples @ 16kHz)
 
+    # Twilio Telephony Settings
+    TWILIO_ACCOUNT_SID: str = Field(default="", description="Twilio Account SID")
+    TWILIO_AUTH_TOKEN: str = Field(default="", description="Twilio Auth Token")
+    TWILIO_PHONE_NUMBER: str = Field(default="", description="Twilio E.164 phone number, e.g. +14783126051")
+    PUBLIC_URL: str = Field(default="", description="Public webhook base URL (e.g. ngrok https URL)")
+
     # Observability
     PHOENIX_COLLECTOR_ENDPOINT: str = "http://localhost:6006"
     PHOENIX_PROJECT_NAME: str = "ai-adventures-voice-support"
